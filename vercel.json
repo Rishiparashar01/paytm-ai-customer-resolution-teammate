@@ -6,7 +6,7 @@
   "functions": {
     "api/app.ts": {
       "maxDuration": 60,
-      "includeFiles": "backend/node_modules/.prisma/**"
+      "includeFiles": "node_modules/.prisma/**"
     }
   },
   "rewrites": [
