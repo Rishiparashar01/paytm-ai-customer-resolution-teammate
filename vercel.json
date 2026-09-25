@@ -1,0 +1,17 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  "buildCommand": "npm --workspace=backend run prisma:generate && npm run build:frontend",
+  "outputDirectory": "frontend/dist",
+  "functions": {
+    "api/app.ts": {
+      "maxDuration": 60,
+      "includeFiles": "backend/node_modules/.prisma/**"
+    }
+  },
+  "rewrites": [
+    { "source": "/health", "destination": "/api/app" },
+    { "source": "/api/(.*)", "destination": "/api/app" },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ]
+}

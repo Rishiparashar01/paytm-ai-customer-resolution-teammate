@@ -1,0 +1,17 @@
+[phases.setup]
+nodePkgs = ["node:22", "npm"]
+
+[phases.install]
+cmds = ["npm install --include=dev"]
+
+[phases.build]
+cmds = ["npm run build:backend"]
+
+[start]
+cmd = "npm --workspace=backend start"
+
+[healthcheck]
+path = "/health"
+interval = 15
+timeout = 5
+retries = 5

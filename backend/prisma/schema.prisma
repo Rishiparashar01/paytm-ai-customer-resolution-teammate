@@ -1,0 +1,170 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x", "linux-musl-openssl-3.0.x", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum CustomerAccountStatus {
+  ACTIVE
+  SUSPENDED
+  FROZEN
+}
+
+enum TransactionStatus {
+  SUCCESS
+  FAILED_AT_BANK
+  PENDING_CLEARING
+  REVERSED
+}
+
+enum ActionStepPolicyStatus {
+  ALLOWED
+  BLOCKED
+  REQUIRES_HUMAN
+}
+
+enum ActionExecutionStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  SKIPPED
+}
+
+enum SessionOutcomeStatus {
+  IN_PROGRESS
+  VERIFIED_SUCCESS
+  VERIFIED_FAILURE
+  ESCALATED
+}
+
+enum HumanReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  MODIFIED
+}
+
+enum AuditStage {
+  INTAKE
+  CONTEXT_GATHERED
+  PLAN_PROPOSED
+  POLICY_EVALUATED
+  TOOL_EXECUTED
+  HUMAN_DECIDED
+  OUTCOME_VERIFIED
+  STATE_TRANSITION
+}
+
+model SyntheticCustomer {
+  customerId       String                @id @map("customer_id")
+  name             String
+  phone            String
+  accountStatus    CustomerAccountStatus @default(ACTIVE) @map("account_status")
+  syntheticBalance Decimal               @default(0) @db.Decimal(12, 2) @map("synthetic_balance")
+  createdAt        DateTime              @default(now()) @map("created_at")
+  updatedAt        DateTime              @updatedAt @map("updated_at")
+  transactions     SyntheticTransaction[]
+  sessions         ResolutionSession[]
+
+  @@map("synthetic_customers")
+}
+
+model SyntheticTransaction {
+  transactionId    String             @id @map("transaction_id")
+  customerId       String             @map("customer_id")
+  amount           Decimal            @db.Decimal(12, 2)
+  billerOrMerchant String             @map("biller_or_merchant")
+  status           TransactionStatus
+  failureReason    String?            @map("failure_reason")
+  idempotencyKey   String?            @unique @map("idempotency_key")
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+  customer         SyntheticCustomer  @relation(fields: [customerId], references: [customerId], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([status])
+  @@map("synthetic_transactions")
+}
+
+model ResolutionSession {
+  sessionId           String              @id @map("session_id")
+  customerId          String              @map("customer_id")
+  targetTransactionId String?             @map("target_transaction_id")
+  statedObjective     String              @map("stated_objective")
+  currentState        String              @map("current_state")
+  retryCount          Int                 @default(0) @map("retry_count")
+  maxRetries          Int                 @default(2) @map("max_retries")
+  outcomeStatus       SessionOutcomeStatus @default(IN_PROGRESS) @map("outcome_status")
+  createdAt           DateTime            @default(now()) @map("created_at")
+  updatedAt           DateTime            @updatedAt @map("updated_at")
+  customer            SyntheticCustomer   @relation(fields: [customerId], references: [customerId], onDelete: Cascade)
+  actionSteps         ActionStep[]
+  auditEntries        AuditLogEntry[]
+  humanReviews        HumanReview[]
+
+  @@index([customerId])
+  @@index([targetTransactionId])
+  @@index([outcomeStatus])
+  @@map("resolution_sessions")
+}
+
+model ActionStep {
+  stepId              String                @id @map("step_id")
+  sessionId           String                @map("session_id")
+  toolName            String                @map("tool_name")
+  toolParams          Json                  @map("tool_params")
+  policyVerdict       ActionStepPolicyStatus @map("policy_verdict")
+  policyRuleTriggered String?               @map("policy_rule_triggered")
+  executionStatus     ActionExecutionStatus @default(PENDING) @map("execution_status")
+  executionResult     Json?                 @map("execution_result")
+  errorMessage        String?               @map("error_message")
+  executedAt          DateTime?             @map("executed_at")
+  createdAt           DateTime              @default(now())
+  session             ResolutionSession     @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+  humanReviews        HumanReview[]
+
+  @@index([sessionId])
+  @@index([toolName])
+  @@index([executionStatus])
+  @@map("action_steps")
+}
+
+model AuditLogEntry {
+  id                BigInt       @id @default(autoincrement())
+  sessionId         String       @map("session_id")
+  stage             AuditStage
+  decisionSummary   String?      @map("decision_summary")
+  contextReferences Json?        @map("context_references")
+  details           Json
+  timestamp         DateTime     @default(now())
+  session           ResolutionSession @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([stage])
+  @@index([timestamp])
+  @@map("audit_log_entries")
+}
+
+model HumanReview {
+  reviewId       String            @id @map("review_id")
+  sessionId      String            @map("session_id")
+  stepId         String            @map("step_id")
+  reason         String
+  proposedTool   String            @map("proposed_tool")
+  proposedParams Json              @map("proposed_params")
+  status         HumanReviewStatus @default(PENDING)
+  reviewerNotes  String?           @map("reviewer_notes")
+  resolvedAt     DateTime?         @map("resolved_at")
+  createdAt      DateTime          @default(now())
+  session        ResolutionSession @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+  step           ActionStep        @relation(fields: [stepId], references: [stepId], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([stepId])
+  @@index([status])
+  @@map("human_reviews")
+}

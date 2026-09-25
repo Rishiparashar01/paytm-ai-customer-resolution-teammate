@@ -1,0 +1,45 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: paytm-ai-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: paytm_ai
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d paytm_ai"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: paytm-ai-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: "4000"
+      NODE_ENV: production
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/paytm_ai?schema=public
+      CORS_ORIGIN: http://localhost:5173,http://127.0.0.1:5173
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-1.5-flash}
+      POLICY_MAX_RETRY_AMOUNT: "2000"
+      POLICY_MAX_RETRIES: "1"
+    ports:
+      - "4000:4000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+volumes:
+  pgdata:

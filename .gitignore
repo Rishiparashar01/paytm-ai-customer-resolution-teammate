@@ -1,0 +1,23 @@
+# Secrets — never commit real env files
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Dependencies & build output
+node_modules/
+dist/
+build/
+.vercel
+
+# Logs & caches
+*.log
+npm-debug.log*
+.turbo/
+.cache/
+
+# Editor / OS noise
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
